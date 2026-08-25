@@ -17,7 +17,7 @@
 ### Modified Files:
 - `lib/AdvancedSearcher/Security.pm` - Removed CGI.pm and HTML::Entities dependencies
 - `lib/AdvancedSearcher/Logger.pm` - Removed File::Path dependency, implemented custom directory creation
-- `lib/AdvancedSearcher/CpanelAPI.pm` - Made cPanel module loading conditional with eval/require
+- `lib/AdvancedSearcher/CpanelAPI.pm` - Made cPanel module loading conditional with eval/require, added fallback config file loading
 - `lib/AdvancedSearcher/DomainSearch.pm` - Changed to load CpanelAPI on-demand
 - `lib/AdvancedSearcher/AccountSearch.pm` - Changed to load CpanelAPI on-demand
 - `lib/AdvancedSearcher/ResellerSearch.pm` - Changed to load CpanelAPI on-demand
@@ -58,9 +58,13 @@ Created a lightweight CGI-compatible module that provides:
 
 ### 4. CpanelAPI.pm Conditional Loading
 - Changed cPanel module loading from compile-time `use` to runtime `eval/require`
+- Changed from `use lib` to `require lib; lib->import()` for better runtime handling
 - Added package-level `$cpanel_available` variable to track availability
+- Added `_load_config_file()` method as fallback when cPanel modules are unavailable
+- Added availability checks before using Cpanel::PwCache and Cpanel::Config::LoadConfig
 - Modules are now loaded conditionally and gracefully handled when unavailable
 - Plugin works in non-cPanel environments for testing
+- Config files can be parsed without cPanel modules using custom parser
 
 ### 5. Search Modules On-Demand Loading
 - All search modules (DomainSearch, AccountSearch, ResellerSearch, PackageSearch, IPSearch)
@@ -243,24 +247,31 @@ WHM AppConfig registration remains unchanged:
 
 ## M. Git Commit Hash
 
-**Commit Hash**: `28e33db`
+**First Commit Hash**: `28e33db` - "Remove external Perl dependencies for improved portability"
+
+**Second Commit Hash**: `9de282e` - "Add fallback config file loading for non-cPanel environments"
 
 **Branch**: `main`
 
 **Repository**: https://github.com/tasinamin121/advanced-searcher
 
-**Commit Message**: "Remove external Perl dependencies for improved portability"
-
 ## N. GitHub Push Confirmation
 
-**Status**: ✅ Successfully pushed
+**Status**: ✅ Successfully pushed (twice)
 
-**Details**:
-- Initial commit created (28e33db)
-- Remote repository: https://github.com/tasinamin121/advanced-searcher.git
+**First Push**:
+- Commit hash: `28e33db`
 - Branch: main
+- Repository: https://github.com/tasinamin121/advanced-searcher.git
 - Force push completed successfully
 - All 31 files committed and pushed
+
+**Second Push** (Additional improvements):
+- Commit hash: `9de282e`
+- Branch: main
+- Repository: https://github.com/tasinamin121/advanced-searcher.git
+- Normal push completed successfully
+- Additional improvements to CpanelAPI.pm for better non-cPanel compatibility
 
 ## O. Remaining Limitations
 
