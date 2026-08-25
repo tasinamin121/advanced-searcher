@@ -14,6 +14,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Integration with cPanel's native search
 - Multi-language support
 
+## [1.2.1] - 2026-08-25
+
+### Fixed
+- **CRITICAL**: Fixed AppConfig name validation - changed from "Advanced Searcher" to "advanced_searcher"
+- cPanel requires app names to contain only letters, numbers, hyphens, and underscores
+- Fixed file copying to download from GitHub when running via curl pipe
+- Added detailed logging for file copying process
+- Added fallback to download from GitHub when local files not found
+- Fixed version to 1.2.1
+
+### Installation
+- Now works correctly when installed via: curl -fsSL URL | bash
+- Downloads plugin from GitHub when running from pipe
+- Validates all files exist before installation
+- Shows detailed progress for file copying
+
 ## [1.2.0] - 2026-08-25
 
 ### Fixed

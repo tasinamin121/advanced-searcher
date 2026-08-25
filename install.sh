@@ -8,7 +8,7 @@
 
 # Configuration - EDIT THESE BEFORE PUBLISHING
 PLUGIN_NAME="advanced-searcher"
-PLUGIN_VERSION="1.2.0"
+PLUGIN_VERSION="1.2.1"
 REPOSITORY_URL="https://github.com/tasinamin121/advanced-searcher.git"
 DOWNLOAD_URL="https://github.com/tasinamin121/advanced-searcher/archive/refs/heads/main.tar.gz"
 
@@ -206,42 +206,135 @@ copy_files() {
     # Get the script directory
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     
-    # Copy WHM index.cgi and api.cgi directly to plugin directory
-    if [[ -f "${SCRIPT_DIR}/whm/index.cgi" ]]; then
-        cp "${SCRIPT_DIR}/whm/index.cgi" "${PLUGIN_DIR}/"
+    info "Script directory: ${SCRIPT_DIR}"
+    info "Checking if running from source directory or need to download..."
+    
+    # Check if we're running from the source directory
+    if [[ -f "${SCRIPT_DIR}/whm/index.cgi" ]] && [[ -f "${SCRIPT_DIR}/VERSION" ]]; then
+        info "Running from source directory, copying local files..."
+        
+        # Copy WHM index.cgi and api.cgi directly to plugin directory
+        if [[ -f "${SCRIPT_DIR}/whm/index.cgi" ]]; then
+            info "Copying whm/index.cgi to ${PLUGIN_DIR}/"
+            cp "${SCRIPT_DIR}/whm/index.cgi" "${PLUGIN_DIR}/"
+        else
+            error "whm/index.cgi not found in ${SCRIPT_DIR}/whm/"
+            return 1
+        fi
+        
+        if [[ -f "${SCRIPT_DIR}/whm/api.cgi" ]]; then
+            info "Copying whm/api.cgi to ${PLUGIN_DIR}/"
+            cp "${SCRIPT_DIR}/whm/api.cgi" "${PLUGIN_DIR}/"
+        else
+            error "whm/api.cgi not found in ${SCRIPT_DIR}/whm/"
+            return 1
+        fi
+        
+        # Copy assets directory
+        if [[ -d "${SCRIPT_DIR}/whm/assets" ]]; then
+            info "Copying whm/assets to ${PLUGIN_DIR}/"
+            cp -r "${SCRIPT_DIR}/whm/assets" "${PLUGIN_DIR}/"
+        else
+            error "whm/assets not found in ${SCRIPT_DIR}/whm/"
+            return 1
+        fi
+        
+        # Copy library files to plugin lib directory
+        if [[ -d "${SCRIPT_DIR}/lib" ]]; then
+            info "Copying lib to ${PLUGIN_DIR}/lib/"
+            mkdir -p "${PLUGIN_DIR}/lib"
+            cp -r "${SCRIPT_DIR}/lib/"* "${PLUGIN_DIR}/lib/"
+        else
+            error "lib not found in ${SCRIPT_DIR}/"
+            return 1
+        fi
+        
+        # Copy CLI binary to plugin bin directory
+        if [[ -f "${SCRIPT_DIR}/bin/advanced-searcher" ]]; then
+            info "Copying bin/advanced-searcher to ${PLUGIN_DIR}/bin/"
+            mkdir -p "${PLUGIN_DIR}/bin"
+            cp "${SCRIPT_DIR}/bin/advanced-searcher" "${PLUGIN_DIR}/bin/"
+        else
+            error "bin/advanced-searcher not found in ${SCRIPT_DIR}/bin/"
+            return 1
+        fi
+        
+        # Copy version file
+        if [[ -f "${SCRIPT_DIR}/VERSION" ]]; then
+            info "Copying VERSION to ${PLUGIN_DIR}/"
+            cp "${SCRIPT_DIR}/VERSION" "${PLUGIN_DIR}/"
+        else
+            error "VERSION not found in ${SCRIPT_DIR}"
+            return 1
+        fi
+    else
+        info "Source files not found locally, downloading from GitHub..."
+        
+        # Download and extract from GitHub
+        local TEMP_DIR="/tmp/${PLUGIN_NAME}-install"
+        mkdir -p "$TEMP_DIR"
+        
+        info "Downloading from ${DOWNLOAD_URL}..."
+        if curl -fsSL "${DOWNLOAD_URL}" -o "${TEMP_DIR}/plugin.tar.gz"; then
+            success "Download completed"
+        else
+            error "Failed to download from GitHub"
+            rm -rf "$TEMP_DIR"
+            return 1
+        fi
+        
+        info "Extracting plugin files..."
+        tar -xzf "${TEMP_DIR}/plugin.tar.gz" -C "$TEMP_DIR"
+        
+        # Find the extracted directory
+        local EXTRACTED_DIR=$(find "$TEMP_DIR" -type d -name "advanced-searcher-*" | head -1)
+        
+        if [[ -z "$EXTRACTED_DIR" ]]; then
+            error "Could not find extracted directory"
+            rm -rf "$TEMP_DIR"
+            return 1
+        fi
+        
+        info "Extracted directory: ${EXTRACTED_DIR}"
+        
+        # Copy files from extracted directory
+        if [[ -f "${EXTRACTED_DIR}/whm/index.cgi" ]]; then
+            cp "${EXTRACTED_DIR}/whm/index.cgi" "${PLUGIN_DIR}/"
+        else
+            error "whm/index.cgi not found in extracted files"
+            rm -rf "$TEMP_DIR"
+            return 1
+        fi
+        
+        if [[ -f "${EXTRACTED_DIR}/whm/api.cgi" ]]; then
+            cp "${EXTRACTED_DIR}/whm/api.cgi" "${PLUGIN_DIR}/"
+        fi
+        
+        if [[ -d "${EXTRACTED_DIR}/whm/assets" ]]; then
+            cp -r "${EXTRACTED_DIR}/whm/assets" "${PLUGIN_DIR}/"
+        fi
+        
+        if [[ -d "${EXTRACTED_DIR}/lib" ]]; then
+            mkdir -p "${PLUGIN_DIR}/lib"
+            cp -r "${EXTRACTED_DIR}/lib/"* "${PLUGIN_DIR}/lib/"
+        fi
+        
+        if [[ -f "${EXTRACTED_DIR}/bin/advanced-searcher" ]]; then
+            mkdir -p "${PLUGIN_DIR}/bin"
+            cp "${EXTRACTED_DIR}/bin/advanced-searcher" "${PLUGIN_DIR}/bin/"
+        fi
+        
+        if [[ -f "${EXTRACTED_DIR}/VERSION" ]]; then
+            cp "${EXTRACTED_DIR}/VERSION" "${PLUGIN_DIR}/"
+        fi
+        
+        # Cleanup
+        rm -rf "$TEMP_DIR"
+        success "Download and extraction completed"
     fi
     
-    if [[ -f "${SCRIPT_DIR}/whm/api.cgi" ]]; then
-        cp "${SCRIPT_DIR}/whm/api.cgi" "${PLUGIN_DIR}/"
-    fi
-    
-    # Copy assets directory
-    if [[ -d "${SCRIPT_DIR}/whm/assets" ]]; then
-        cp -r "${SCRIPT_DIR}/whm/assets" "${PLUGIN_DIR}/"
-    fi
-    
-    # Copy library files to plugin lib directory
-    if [[ -d "${SCRIPT_DIR}/lib" ]]; then
-        mkdir -p "${PLUGIN_DIR}/lib"
-        cp -r "${SCRIPT_DIR}/lib/"* "${PLUGIN_DIR}/lib/"
-    fi
-    
-    # Copy AdvancedSearcher modules
-    if [[ -d "${SCRIPT_DIR}/lib/AdvancedSearcher" ]]; then
-        mkdir -p "${PLUGIN_DIR}/lib/AdvancedSearcher"
-        cp -r "${SCRIPT_DIR}/lib/AdvancedSearcher/"* "${PLUGIN_DIR}/lib/AdvancedSearcher/"
-    fi
-    
-    # Copy CLI binary to plugin bin directory
-    if [[ -f "${SCRIPT_DIR}/bin/advanced-searcher" ]]; then
-        mkdir -p "${PLUGIN_DIR}/bin"
-        cp "${SCRIPT_DIR}/bin/advanced-searcher" "${PLUGIN_DIR}/bin/"
-    fi
-    
-    # Copy version file
-    if [[ -f "${SCRIPT_DIR}/VERSION" ]]; then
-        cp "${SCRIPT_DIR}/VERSION" "${PLUGIN_DIR}/"
-    fi
+    info "Listing plugin directory after copy:"
+    ls -la "${PLUGIN_DIR}"
     
     success "Files copied"
 }
@@ -266,7 +359,7 @@ register_plugin() {
     cat > "/tmp/${PLUGIN_NAME}.conf" <<EOF
 service=whostmgr
 url=/cgi/${PLUGIN_NAME}/index.cgi
-name=Advanced Searcher
+name=advanced_searcher
 displayname=Advanced Searcher
 description=Search domains, accounts, resellers, packages and IP addresses
 version=${PLUGIN_VERSION}
