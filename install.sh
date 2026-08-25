@@ -8,7 +8,7 @@
 
 # Configuration - EDIT THESE BEFORE PUBLISHING
 PLUGIN_NAME="advanced-searcher"
-PLUGIN_VERSION="1.1.0"
+PLUGIN_VERSION="1.2.0"
 REPOSITORY_URL="https://github.com/tasinamin121/advanced-searcher.git"
 DOWNLOAD_URL="https://github.com/tasinamin121/advanced-searcher/archive/refs/heads/main.tar.gz"
 
@@ -192,11 +192,10 @@ create_directories() {
     mkdir -p "$PLUGIN_DIR"
     mkdir -p "$PLUGIN_CONFIG_DIR"
     mkdir -p "$PLUGIN_LOG_DIR"
-    mkdir -p "${PLUGIN_DIR}/whm/assets/css"
-    mkdir -p "${PLUGIN_DIR}/whm/assets/js"
-    mkdir -p "${PLUGIN_DIR}/whm/templates"
-    mkdir -p "${PLUGIN_DIR}/lib/AdvancedSearcher"
-    mkdir -p "${PLUGIN_DIR}/bin"
+    mkdir -p "$PLUGIN_DIR/assets/css"
+    mkdir -p "$PLUGIN_DIR/assets/js"
+    mkdir -p "$PLUGIN_DIR/lib/AdvancedSearcher"
+    mkdir -p "$PLUGIN_DIR/bin"
     
     success "Directories created"
 }
@@ -207,23 +206,35 @@ copy_files() {
     # Get the script directory
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     
-    # Copy WHM files
-    if [[ -d "${SCRIPT_DIR}/whm" ]]; then
-        cp -r "${SCRIPT_DIR}/whm/"* "${PLUGIN_DIR}/whm/"
+    # Copy WHM index.cgi and api.cgi directly to plugin directory
+    if [[ -f "${SCRIPT_DIR}/whm/index.cgi" ]]; then
+        cp "${SCRIPT_DIR}/whm/index.cgi" "${PLUGIN_DIR}/"
     fi
     
-    # Copy library files
+    if [[ -f "${SCRIPT_DIR}/whm/api.cgi" ]]; then
+        cp "${SCRIPT_DIR}/whm/api.cgi" "${PLUGIN_DIR}/"
+    fi
+    
+    # Copy assets directory
+    if [[ -d "${SCRIPT_DIR}/whm/assets" ]]; then
+        cp -r "${SCRIPT_DIR}/whm/assets" "${PLUGIN_DIR}/"
+    fi
+    
+    # Copy library files to plugin lib directory
     if [[ -d "${SCRIPT_DIR}/lib" ]]; then
+        mkdir -p "${PLUGIN_DIR}/lib"
         cp -r "${SCRIPT_DIR}/lib/"* "${PLUGIN_DIR}/lib/"
     fi
     
     # Copy AdvancedSearcher modules
     if [[ -d "${SCRIPT_DIR}/lib/AdvancedSearcher" ]]; then
+        mkdir -p "${PLUGIN_DIR}/lib/AdvancedSearcher"
         cp -r "${SCRIPT_DIR}/lib/AdvancedSearcher/"* "${PLUGIN_DIR}/lib/AdvancedSearcher/"
     fi
     
-    # Copy CLI binary
+    # Copy CLI binary to plugin bin directory
     if [[ -f "${SCRIPT_DIR}/bin/advanced-searcher" ]]; then
+        mkdir -p "${PLUGIN_DIR}/bin"
         cp "${SCRIPT_DIR}/bin/advanced-searcher" "${PLUGIN_DIR}/bin/"
     fi
     
@@ -251,38 +262,52 @@ register_plugin() {
     mkdir -p "/var/cpanel/apps"
     chmod 755 "/var/cpanel/apps"
     
-    # Create AppConfig configuration file
+    # Create AppConfig configuration file in flat key=value format
     cat > "/tmp/${PLUGIN_NAME}.conf" <<EOF
-advanced_searcher:
-  name: Advanced Searcher
-  description: Search domains, accounts, resellers, packages and IP addresses
-  version: ${PLUGIN_VERSION}
-  url: /cgi/${PLUGIN_NAME}/index.cgi
-  icon: paper-plane
-  display_name: Advanced Searcher
-  acls:
-    -
-      acl: all
-      required: 1
-  feature:
-    feature: advanced_searcher
-    display_name: Advanced Searcher
-    description: Advanced search functionality
-  type: link
-  order: 100
+service=whostmgr
+url=/cgi/${PLUGIN_NAME}/index.cgi
+name=Advanced Searcher
+displayname=Advanced Searcher
+description=Search domains, accounts, resellers, packages and IP addresses
+version=${PLUGIN_VERSION}
+user=root
+acls=all
 EOF
+    
+    # Validate the generated config
+    info "Validating generated AppConfig configuration..."
+    if [[ ! -f "/tmp/${PLUGIN_NAME}.conf" ]]; then
+        error "Failed to create AppConfig configuration file"
+        return 1
+    fi
+    
+    info "AppConfig configuration contents:"
+    cat "/tmp/${PLUGIN_NAME}.conf"
     
     # Register with AppConfig
     if command -v /usr/local/cpanel/bin/register_appconfig &> /dev/null; then
+        info "Running register_appconfig..."
         /usr/local/cpanel/bin/register_appconfig "/tmp/${PLUGIN_NAME}.conf"
-        if [[ $? -eq 0 ]]; then
+        local register_status=$?
+        
+        if [[ $register_status -eq 0 ]]; then
             success "WHM plugin registered with AppConfig"
+            
+            # Verify the config was created
+            if [[ -f "/var/cpanel/apps/${PLUGIN_NAME}.conf" ]]; then
+                success "AppConfig configuration file created at /var/cpanel/apps/${PLUGIN_NAME}.conf"
+                info "Registered configuration:"
+                cat "/var/cpanel/apps/${PLUGIN_NAME}.conf"
+            else
+                error "AppConfig registration succeeded but config file not found at /var/cpanel/apps/${PLUGIN_NAME}.conf"
+                return 1
+            fi
         else
-            error "AppConfig registration failed"
+            error "AppConfig registration failed with exit code $register_status"
             return 1
         fi
     else
-        error "register_appconfig command not found"
+        error "register_appconfig command not found at /usr/local/cpanel/bin/register_appconfig"
         return 1
     fi
     
@@ -300,13 +325,11 @@ set_permissions() {
     
     # Set permissions
     chmod 755 "$PLUGIN_DIR"
-    chmod 755 "${PLUGIN_DIR}/whm"
-    chmod 755 "${PLUGIN_DIR}/whm/index.cgi"
-    chmod 755 "${PLUGIN_DIR}/whm/api.cgi"
+    chmod 755 "${PLUGIN_DIR}/index.cgi"
+    chmod 755 "${PLUGIN_DIR}/api.cgi"
     chmod 755 "${PLUGIN_DIR}/bin/advanced-searcher"
-    chmod 644 "${PLUGIN_DIR}/whm/assets/css"/*
-    chmod 644 "${PLUGIN_DIR}/whm/assets/js"/*
-    chmod 644 "${PLUGIN_DIR}/whm/templates"/*
+    chmod 644 "${PLUGIN_DIR}/assets/css"/*
+    chmod 644 "${PLUGIN_DIR}/assets/js"/*
     chmod 644 "${PLUGIN_DIR}/lib/AdvancedSearcher/"*
     chmod 755 "${PLUGIN_DIR}/lib/AdvancedSearcher"
     
@@ -367,30 +390,40 @@ verify_installation() {
     INSTALLATION_OK=true
     
     # Check critical files
-    if [[ ! -f "${PLUGIN_DIR}/whm/index.cgi" ]]; then
-        error "WHM index.cgi not found"
+    if [[ ! -f "${PLUGIN_DIR}/index.cgi" ]]; then
+        error "WHM index.cgi not found at ${PLUGIN_DIR}/index.cgi"
         INSTALLATION_OK=false
     fi
     
-    if [[ ! -f "${PLUGIN_DIR}/whm/api.cgi" ]]; then
-        error "WHM api.cgi not found"
+    if [[ ! -f "${PLUGIN_DIR}/api.cgi" ]]; then
+        error "WHM api.cgi not found at ${PLUGIN_DIR}/api.cgi"
+        INSTALLATION_OK=false
+    fi
+    
+    if [[ ! -d "${PLUGIN_DIR}/lib/AdvancedSearcher" ]]; then
+        error "Library directory not found at ${PLUGIN_DIR}/lib/AdvancedSearcher"
         INSTALLATION_OK=false
     fi
     
     if [[ ! -x "${CLI_BIN_DIR}/advanced-searcher" ]]; then
-        error "CLI tool not executable"
+        error "CLI tool not executable at ${CLI_BIN_DIR}/advanced-searcher"
         INSTALLATION_OK=false
     fi
     
     if [[ ! -f "${PLUGIN_CONFIG_DIR}/config.conf" ]]; then
-        error "Configuration file not found"
+        error "Configuration file not found at ${PLUGIN_CONFIG_DIR}/config.conf"
+        INSTALLATION_OK=false
+    fi
+    
+    if [[ ! -f "/var/cpanel/apps/${PLUGIN_NAME}.conf" ]]; then
+        error "AppConfig configuration not found at /var/cpanel/apps/${PLUGIN_NAME}.conf"
         INSTALLATION_OK=false
     fi
     
     # Validate Perl syntax
     info "Validating Perl syntax..."
-    if [[ -f "${PLUGIN_DIR}/whm/index.cgi" ]]; then
-        if perl -c "${PLUGIN_DIR}/whm/index.cgi" 2>/dev/null; then
+    if [[ -f "${PLUGIN_DIR}/index.cgi" ]]; then
+        if perl -c "${PLUGIN_DIR}/index.cgi" 2>&1; then
             success "WHM index.cgi syntax OK"
         else
             error "WHM index.cgi syntax error"
@@ -398,8 +431,8 @@ verify_installation() {
         fi
     fi
     
-    if [[ -f "${PLUGIN_DIR}/whm/api.cgi" ]]; then
-        if perl -c "${PLUGIN_DIR}/whm/api.cgi" 2>/dev/null; then
+    if [[ -f "${PLUGIN_DIR}/api.cgi" ]]; then
+        if perl -c "${PLUGIN_DIR}/api.cgi" 2>&1; then
             success "WHM api.cgi syntax OK"
         else
             error "WHM api.cgi syntax error"
@@ -408,13 +441,26 @@ verify_installation() {
     fi
     
     if [[ -f "${CLI_BIN_DIR}/advanced-searcher" ]]; then
-        if perl -c "${CLI_BIN_DIR}/advanced-searcher" 2>/dev/null; then
+        if perl -c "${CLI_BIN_DIR}/advanced-searcher" 2>&1; then
             success "CLI tool syntax OK"
         else
             error "CLI tool syntax error"
             INSTALLATION_OK=false
         fi
     fi
+    
+    # Validate all Perl modules
+    info "Validating Perl modules..."
+    for module_file in "${PLUGIN_DIR}/lib/AdvancedSearcher/"*.pm; do
+        if [[ -f "$module_file" ]]; then
+            if perl -c "$module_file" 2>&1; then
+                success "$(basename $module_file) syntax OK"
+            else
+                error "$(basename $module_file) syntax error"
+                INSTALLATION_OK=false
+            fi
+        fi
+    done
     
     if [[ "$INSTALLATION_OK" == true ]]; then
         success "Installation verified"

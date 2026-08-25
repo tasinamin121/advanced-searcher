@@ -14,6 +14,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Integration with cPanel's native search
 - Multi-language support
 
+## [1.2.0] - 2026-08-25
+
+### Fixed
+- **CRITICAL**: Fixed AppConfig registration format to use correct flat key=value format
+- Changed from YAML format to cPanel-compatible key=value format
+- Fixed WHM CGI module paths to use absolute paths from plugin directory
+- Fixed installation structure to place files directly in plugin directory
+- Fixed installation verification to check actual installed files at correct paths
+- Fixed uninstall.sh to properly remove AppConfig configuration
+- Fixed update.sh to use correct file paths and verification
+- Fixed asset path references in index.cgi to use dynamic base URL
+- Added AppConfig registration verification with detailed output
+- Added Perl module syntax validation to installation verification
+
+### Changed
+- Plugin files now installed directly to /usr/local/cpanel/whostmgr/docroot/cgi/advanced-searcher/
+- Library path changed from ../../lib to ./lib in CGI scripts
+- AppConfig configuration now uses service=whostmgr, acls=all format
+- Installation verification now validates all Perl modules individually
+- Error page now uses dynamic asset path instead of hardcoded /plugins/ path
+
+### Installation
+- AppConfig URL: /cgi/advanced-searcher/index.cgi
+- Plugin directory: /usr/local/cpanel/whostmgr/docroot/cgi/advanced-searcher/
+- Library directory: /usr/local/cpanel/whostmgr/docroot/cgi/advanced-searcher/lib/
+- CLI path: /usr/local/bin/advanced-searcher
+- AppConfig config: /var/cpanel/apps/advanced-searcher.conf
+
 ## [1.1.0] - 2026-08-25
 
 ### Changed

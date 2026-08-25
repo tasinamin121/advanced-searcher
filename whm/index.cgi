@@ -10,8 +10,8 @@ use strict;
 use warnings;
 use JSON::PP;
 use FindBin;
-use lib "$FindBin::Bin/../../lib";
-use lib "$FindBin::Bin/../../lib/AdvancedSearcher";
+use lib "$FindBin::Bin/lib";
+use lib "$FindBin::Bin/lib/AdvancedSearcher";
 
 # Import our custom modules
 use AdvancedSearcher::CGICompat;
@@ -21,7 +21,7 @@ use AdvancedSearcher::CpanelAPI;
 
 # Configuration
 my $PLUGIN_NAME = "advanced-searcher";
-my $PLUGIN_VERSION = "1.1.0";
+my $PLUGIN_VERSION = "1.2.0";
 my $CONFIG_DIR = "/etc/$PLUGIN_NAME";
 my $LOG_DIR = "/var/log/$PLUGIN_NAME";
 
@@ -770,6 +770,10 @@ sub print_error {
     my ($message) = @_;
     my $safe_message = $security->escape_html($message);
     
+    # Get the base URL for assets
+    my $base_url = $ENV{'SCRIPT_NAME'} || '';
+    $base_url =~ s/\/[^\/]*$//; # Remove script name
+    
     print $cgi->header();
     print qq{
 <!DOCTYPE html>
@@ -777,7 +781,7 @@ sub print_error {
 <head>
     <meta charset="UTF-8">
     <title>Error - Advanced Searcher</title>
-    <link rel="stylesheet" href="/plugins/$PLUGIN_NAME/assets/css/style.css">
+    <link rel="stylesheet" href="${base_url}/assets/css/style.css">
 </head>
 <body>
     <div class="container">

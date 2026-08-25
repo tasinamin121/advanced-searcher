@@ -143,6 +143,7 @@ unregister_plugin() {
     # Remove AppConfig configuration file
     if [[ -f "/var/cpanel/apps/${PLUGIN_NAME}.conf" ]]; then
         rm -f "/var/cpanel/apps/${PLUGIN_NAME}.conf"
+        success "AppConfig configuration removed"
     fi
     
     # Remove old-style configuration if it exists

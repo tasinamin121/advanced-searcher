@@ -10,8 +10,8 @@ use strict;
 use warnings;
 use JSON::PP;
 use FindBin;
-use lib "$FindBin::Bin/../../lib";
-use lib "$FindBin::Bin/../../lib/AdvancedSearcher";
+use lib "$FindBin::Bin/lib";
+use lib "$FindBin::Bin/lib/AdvancedSearcher";
 
 # Import our custom modules
 use AdvancedSearcher::CGICompat;

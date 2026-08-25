@@ -229,8 +229,16 @@ apply_update() {
     info "Applying update to version ${target_version}..."
     
     # Copy new files (preserving configuration)
-    if [[ -d "${update_dir}/whm" ]]; then
-        cp -r "${update_dir}/whm/"* "${PLUGIN_DIR}/whm/"
+    if [[ -f "${update_dir}/whm/index.cgi" ]]; then
+        cp "${update_dir}/whm/index.cgi" "${PLUGIN_DIR}/"
+    fi
+    
+    if [[ -f "${update_dir}/whm/api.cgi" ]]; then
+        cp "${update_dir}/whm/api.cgi" "${PLUGIN_DIR}/"
+    fi
+    
+    if [[ -d "${update_dir}/whm/assets" ]]; then
+        cp -r "${update_dir}/whm/assets" "${PLUGIN_DIR}/"
     fi
     
     if [[ -d "${update_dir}/lib" ]]; then
@@ -252,9 +260,8 @@ apply_update() {
     # Reset permissions
     chown -R root:root "$PLUGIN_DIR"
     chmod 755 "$PLUGIN_DIR"
-    chmod 755 "${PLUGIN_DIR}/whm"
-    chmod 755 "${PLUGIN_DIR}/whm/index.cgi"
-    chmod 755 "${PLUGIN_DIR}/whm/api.cgi"
+    chmod 755 "${PLUGIN_DIR}/index.cgi"
+    chmod 755 "${PLUGIN_DIR}/api.cgi"
     chmod 755 "${PLUGIN_DIR}/bin/advanced-searcher"
     
     success "Update applied"
@@ -304,12 +311,12 @@ verify_update() {
     fi
     
     # Check critical files
-    if [[ ! -f "${PLUGIN_DIR}/whm/index.cgi" ]]; then
+    if [[ ! -f "${PLUGIN_DIR}/index.cgi" ]]; then
         error "WHM index.cgi not found"
         UPDATE_OK=false
     fi
     
-    if [[ ! -f "${PLUGIN_DIR}/whm/api.cgi" ]]; then
+    if [[ ! -f "${PLUGIN_DIR}/api.cgi" ]]; then
         error "WHM api.cgi not found"
         UPDATE_OK=false
     fi
@@ -321,8 +328,8 @@ verify_update() {
     
     # Validate Perl syntax
     info "Validating Perl syntax..."
-    if [[ -f "${PLUGIN_DIR}/whm/index.cgi" ]]; then
-        if perl -c "${PLUGIN_DIR}/whm/index.cgi" 2>/dev/null; then
+    if [[ -f "${PLUGIN_DIR}/index.cgi" ]]; then
+        if perl -c "${PLUGIN_DIR}/index.cgi" 2>&1; then
             success "WHM index.cgi syntax OK"
         else
             error "WHM index.cgi syntax error"
@@ -330,8 +337,8 @@ verify_update() {
         fi
     fi
     
-    if [[ -f "${PLUGIN_DIR}/whm/api.cgi" ]]; then
-        if perl -c "${PLUGIN_DIR}/whm/api.cgi" 2>/dev/null; then
+    if [[ -f "${PLUGIN_DIR}/api.cgi" ]]; then
+        if perl -c "${PLUGIN_DIR}/api.cgi" 2>&1; then
             success "WHM api.cgi syntax OK"
         else
             error "WHM api.cgi syntax error"
@@ -340,13 +347,26 @@ verify_update() {
     fi
     
     if [[ -f "${CLI_BIN_DIR}/advanced-searcher" ]]; then
-        if perl -c "${CLI_BIN_DIR}/advanced-searcher" 2>/dev/null; then
+        if perl -c "${CLI_BIN_DIR}/advanced-searcher" 2>&1; then
             success "CLI tool syntax OK"
         else
             error "CLI tool syntax error"
             UPDATE_OK=false
         fi
     fi
+    
+    # Validate all Perl modules
+    info "Validating Perl modules..."
+    for module_file in "${PLUGIN_DIR}/lib/AdvancedSearcher/"*.pm; do
+        if [[ -f "$module_file" ]]; then
+            if perl -c "$module_file" 2>&1; then
+                success "$(basename $module_file) syntax OK"
+            else
+                error "$(basename $module_file) syntax error"
+                UPDATE_OK=false
+            fi
+        fi
+    done
     
     if [[ "$UPDATE_OK" == true ]]; then
         success "Update verified"
