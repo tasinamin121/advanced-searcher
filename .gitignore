@@ -1,0 +1,44 @@
+# Logs
+logs/*.log
+logs/*.log.*
+
+# Configuration (may contain sensitive data)
+config/*.conf
+config/*.json
+!config/config.example.conf
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Backup files
+*.bak
+*.backup
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Perl
+*.pmc
+
+# Editor files
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# cPanel specific
+*.cpanel
+*.cpanel.yml

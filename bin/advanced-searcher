@@ -1,0 +1,490 @@
+#!/usr/bin/perl
+
+#===============================================================================
+# Advanced Searcher - CLI Tool
+#===============================================================================
+# Command-line interface for Advanced Searcher WHM plugin
+#===============================================================================
+
+use strict;
+use warnings;
+use Getopt::Long;
+use Pod::Usage;
+use JSON::PP;
+use FindBin;
+use lib "$FindBin::Bin/../lib";
+use lib "$FindBin::Bin/../lib/AdvancedSearcher";
+
+# Import our custom modules
+use AdvancedSearcher::Security;
+use AdvancedSearcher::Logger;
+use AdvancedSearcher::CpanelAPI;
+
+# Configuration
+my $PLUGIN_NAME = "advanced-searcher";
+my $CONFIG_DIR = "/etc/$PLUGIN_NAME";
+my $LOG_DIR = "/var/log/$PLUGIN_NAME";
+my $VERSION_FILE = "$FindBin::Bin/../VERSION";
+
+# Global variables
+my $help = 0;
+my $version = 0;
+my $status = 0;
+my $diagnose = 0;
+my $search = '';
+my $search_type = 'domain';
+my $json_output = 0;
+my $verbose = 0;
+
+# Parse command line options
+GetOptions(
+    'help|h' => \$help,
+    'version|v' => \$version,
+    'status|s' => \$status,
+    'diagnose|d' => \$diagnose,
+    'search|S=s' => \$search,
+    'type|t=s' => \$search_type,
+    'json|j' => \$json_output,
+    'verbose' => \$verbose
+) or pod2usage(2);
+
+# Display help if requested
+pod2usage(1) if $help;
+
+# Display version if requested
+if ($version) {
+    display_version();
+    exit 0;
+}
+
+# Display status if requested
+if ($status) {
+    display_status();
+    exit 0;
+}
+
+# Run diagnostics if requested
+if ($diagnose) {
+    run_diagnostics();
+    exit 0;
+}
+
+# Perform search if query provided
+if ($search) {
+    perform_search($search, $search_type);
+    exit 0;
+}
+
+# If no action specified, show help
+pod2usage(1);
+
+#===============================================================================
+# Command Functions
+#===============================================================================
+
+sub display_version {
+    my $version = get_plugin_version();
+    print "Advanced Searcher CLI v$version\n";
+    print "cPanel/WHM Plugin\n";
+}
+
+sub display_status {
+    my $version = get_plugin_version();
+    my $config_exists = -e "$CONFIG_DIR/config.conf" ? "yes" : "no";
+    my $log_dir_exists = -d $LOG_DIR ? "yes" : "no";
+    my $cli_version = $version;
+    
+    print "Advanced Searcher Status\n";
+    print "========================\n";
+    print "Version: $cli_version\n";
+    print "Configuration: $config_exists\n";
+    print "Log Directory: $log_dir_exists\n";
+    print "Config Directory: $CONFIG_DIR\n";
+    print "Log Directory: $LOG_DIR\n";
+}
+
+sub run_diagnostics {
+    my $security = AdvancedSearcher::Security->new();
+    my $logger = AdvancedSearcher::Logger->new(log_dir => $LOG_DIR);
+    my $cpanel_api = AdvancedSearcher::CpanelAPI->new(logger => $logger);
+    
+    my $diagnostics = {
+        'Plugin Version' => get_plugin_version(),
+        'cPanel Version' => get_cpanel_version(),
+        'OS' => get_os_info(),
+        'Perl Version' => $^V,
+        'Plugin Directory' => $FindBin::Bin,
+        'Config Directory' => $CONFIG_DIR,
+        'Log Directory' => $LOG_DIR,
+        'Installation Status' => (-e $VERSION_FILE) ? 'Installed' : 'Not Installed',
+        'API Availability' => $cpanel_api->check_api_availability() ? 'Available' : 'Not Available',
+        'Plugin Permissions' => get_plugin_permissions(),
+        'Config Exists' => (-e "$CONFIG_DIR/config.conf") ? 'Yes' : 'No',
+        'Log Writable' => (-w $LOG_DIR) ? 'Yes' : 'No',
+        'Root Access' => $security->is_root() ? 'Yes' : 'No'
+    };
+    
+    print "System Diagnostics\n";
+    print "==================\n";
+    
+    foreach my $key (sort keys %$diagnostics) {
+        printf "%-25s: %s\n", $key, $diagnostics->{$key};
+    }
+}
+
+sub perform_search {
+    my ($query, $type) = @_;
+    
+    # Check if running as root
+    my $security = AdvancedSearcher::Security->new();
+    unless ($security->is_root()) {
+        print STDERR "Error: This command requires root access\n";
+        exit 1;
+    }
+    
+    # Initialize logger and API
+    my $logger = AdvancedSearcher::Logger->new(log_dir => $LOG_DIR);
+    my $cpanel_api = AdvancedSearcher::CpanelAPI->new(logger => $logger);
+    
+    # Sanitize input
+    $query = $security->sanitize_input($query);
+    $type = $security->sanitize_input($type);
+    
+    # Validate search type
+    my @valid_types = qw(domain username account reseller package ip);
+    unless (grep { $_ eq $type } @valid_types) {
+        print STDERR "Error: Invalid search type '$type'\n";
+        print STDERR "Valid types: " . join(", ", @valid_types) . "\n";
+        exit 1;
+    }
+    
+    # Normalize search term
+    $query = $security->normalize_search_term($query, $type);
+    
+    unless ($query) {
+        print STDERR "Error: Invalid search query\n";
+        exit 1;
+    }
+    
+    # Perform search
+    my $result;
+    eval {
+        if ($type eq 'domain') {
+            $result = $cpanel_api->search_domain($query);
+        } elsif ($type eq 'username' || $type eq 'account') {
+            $result = $cpanel_api->search_account($query);
+        } elsif ($type eq 'reseller') {
+            $result = $cpanel_api->search_reseller($query);
+        } elsif ($type eq 'package') {
+            $result = $cpanel_api->search_package($query);
+        } elsif ($type eq 'ip') {
+            $result = $cpanel_api->search_ip($query);
+        }
+    };
+    
+    if ($@) {
+        print STDERR "Error: Search failed - $@\n";
+        $logger->error("CLI search failed: $@");
+        exit 1;
+    }
+    
+    # Output results
+    if ($json_output) {
+        print_json_result($result);
+    } else {
+        print_text_result($result, $type, $query);
+    }
+    
+    # Log search
+    $logger->log_search($type, $query, $result->{found});
+}
+
+sub print_text_result {
+    my ($result, $type, $query) = @_;
+    
+    unless ($result && $result->{found}) {
+        print "No matching results found for '$query'\n";
+        return;
+    }
+    
+    if ($type eq 'domain') {
+        print_domain_result_text($result);
+    } elsif ($type eq 'username' || $type eq 'account') {
+        print_account_result_text($result);
+    } elsif ($type eq 'reseller') {
+        print_reseller_result_text($result);
+    } elsif ($type eq 'package') {
+        print_package_result_text($result);
+    } elsif ($type eq 'ip') {
+        print_ip_result_text($result);
+    }
+}
+
+sub print_domain_result_text {
+    my ($result) = @_;
+    
+    print "Domain Information\n";
+    print "==================\n";
+    print "Domain: $result->{domain}\n";
+    print "Domain Type: $result->{domain_type}\n";
+    print "cPanel Username: $result->{username}\n";
+    print "Account Owner: $result->{owner}\n";
+    print "Reseller: $result->{reseller}\n";
+    print "Package: $result->{package}\n";
+    print "Account Status: $result->{status}\n";
+    print "Main Domain: $result->{main_domain}\n";
+    print "IP Address: $result->{ip}\n";
+    print "Home Directory: $result->{home_dir}\n";
+    print "Created: $result->{created}\n" if $result->{created};
+    
+    print "\nAccount Hierarchy\n";
+    print "=================\n";
+    print "$result->{domain}\n";
+    print "  ↓\n";
+    print "$result->{username}\n";
+    print "  ↓\n";
+    print "$result->{reseller}\n";
+    print "  ↓\n";
+    print "$result->{package}\n";
+    print "  ↓\n";
+    print "$result->{ip}\n";
+}
+
+sub print_account_result_text {
+    my ($result) = @_;
+    
+    print "Account Information\n";
+    print "==================\n";
+    print "Username: $result->{username}\n";
+    print "Main Domain: $result->{main_domain}\n";
+    print "Reseller: $result->{reseller}\n";
+    print "Package: $result->{package}\n";
+    print "Status: $result->{status}\n";
+    print "IP: $result->{ip}\n";
+    print "Home Directory: $result->{home_dir}\n";
+    
+    if ($result->{domains} && @{$result->{domains}}) {
+        print "\nDomains\n";
+        print "=======\n";
+        foreach my $domain (@{$result->{domains}}) {
+            print "  $domain->{domain} - $domain->{type}\n";
+        }
+    }
+}
+
+sub print_reseller_result_text {
+    my ($result) = @_;
+    
+    print "Reseller Information\n";
+    print "====================\n";
+    print "Reseller: $result->{reseller}\n";
+    print "Owner: $result->{owner}\n";
+    print "Package: $result->{package}\n";
+    print "Accounts: $result->{account_count}\n";
+    
+    if ($result->{accounts} && @{$result->{accounts}}) {
+        print "\nAccounts\n";
+        print "========\n";
+        printf "%-15s %-25s %-15s %-10s\n", "Username", "Main Domain", "Package", "Status";
+        print "-" x 65 . "\n";
+        foreach my $account (@{$result->{accounts}}) {
+            printf "%-15s %-25s %-15s %-10s\n", 
+                $account->{username}, 
+                $account->{domain}, 
+                $account->{package}, 
+                $account->{status};
+        }
+    }
+}
+
+sub print_package_result_text {
+    my ($result) = @_;
+    
+    print "Package: $result->{package}\n";
+    print "========\n";
+    
+    if ($result->{accounts} && @{$result->{accounts}}) {
+        print "Accounts using this package:\n";
+        printf "%-15s %-25s %-15s %-10s %-15s\n", "Username", "Main Domain", "Reseller", "Status", "IP";
+        print "-" x 80 . "\n";
+        foreach my $account (@{$result->{accounts}}) {
+            printf "%-15s %-25s %-15s %-10s %-15s\n", 
+                $account->{username}, 
+                $account->{domain}, 
+                $account->{reseller}, 
+                $account->{status}, 
+                $account->{ip};
+        }
+    } else {
+        print "No accounts found using this package.\n";
+    }
+}
+
+sub print_ip_result_text {
+    my ($result) = @_;
+    
+    print "IP Address: $result->{ip}\n";
+    print "===========\n";
+    
+    if ($result->{accounts} && @{$result->{accounts}}) {
+        print "Accounts on this IP:\n";
+        printf "%-15s %-25s %-15s %-10s\n", "Username", "Main Domain", "Reseller", "Status";
+        print "-" x 65 . "\n";
+        foreach my $account (@{$result->{accounts}}) {
+            printf "%-15s %-25s %-15s %-10s\n", 
+                $account->{username}, 
+                $account->{domain}, 
+                $account->{reseller}, 
+                $account->{status};
+        }
+    } else {
+        print "No accounts found on this IP address.\n";
+    }
+}
+
+sub print_json_result {
+    my ($result) = @_;
+    my $json = JSON::PP->new->utf8->pretty->encode($result);
+    print $json;
+}
+
+#===============================================================================
+# Utility Functions
+#===============================================================================
+
+sub get_plugin_version {
+    if (-e $VERSION_FILE) {
+        open my $fh, '<', $VERSION_FILE or return 'unknown';
+        my $version = <$fh>;
+        close $fh;
+        chomp $version;
+        return $version;
+    }
+    return 'unknown';
+}
+
+sub get_cpanel_version {
+    my $version_file = '/usr/local/cpanel/version';
+    if (-e $version_file) {
+        open my $fh, '<', $version_file or return 'unknown';
+        my $version = <$fh>;
+        close $fh;
+        chomp $version;
+        return $version;
+    }
+    return 'unknown';
+}
+
+sub get_os_info {
+    if (-e '/etc/redhat-release') {
+        open my $fh, '<', '/etc/redhat-release' or return 'unknown';
+        my $os = <$fh>;
+        close $fh;
+        chomp $os;
+        return $os;
+    } elsif (-e '/etc/debian_version') {
+        open my $fh, '<', '/etc/debian_version' or return 'unknown';
+        my $os = <$fh>;
+        close $fh;
+        chomp $os;
+        return "Debian $os";
+    }
+    return 'unknown';
+}
+
+sub get_plugin_permissions {
+    my $dir = $FindBin::Bin;
+    my $perms = (stat $dir)[2] & 0777;
+    return sprintf("%04o", $perms);
+}
+
+__END__
+
+=head1 NAME
+
+advanced-searcher - CLI tool for Advanced Searcher WHM plugin
+
+=head1 SYNOPSIS
+
+advanced-searcher [options]
+
+ Options:
+   -h, --help           Display this help message
+   -v, --version        Display version information
+   -s, --status         Display plugin status
+   -d, --diagnose       Run system diagnostics
+   -S, --search QUERY   Perform a search
+   -t, --type TYPE      Search type (domain, username, account, reseller, package, ip)
+   -j, --json           Output results in JSON format
+   --verbose            Enable verbose output
+
+=head1 EXAMPLES
+
+ # Display version
+ advanced-searcher --version
+
+ # Display status
+ advanced-searcher --status
+
+ # Run diagnostics
+ advanced-searcher --diagnose
+
+ # Search for a domain
+ advanced-searcher --search example.com
+
+ # Search for a username
+ advanced-searcher --search client01 --type username
+
+ # Search for a reseller
+ advanced-searcher --search reseller01 --type reseller
+
+ # Search with JSON output
+ advanced-searcher --search example.com --json
+
+=head1 SEARCH TYPES
+
+=over 4
+
+=item B<domain>
+
+Search for a domain name (default)
+
+=item B<username>
+
+Search for a cPanel username
+
+=item B<account>
+
+Search for a cPanel account (same as username)
+
+=item B<reseller>
+
+Search for a reseller
+
+=item B<package>
+
+Search for a hosting package
+
+=item B<ip>
+
+Search for an IP address
+
+=back
+
+=head1 DESCRIPTION
+
+This CLI tool provides command-line access to the Advanced Searcher WHM plugin
+functionality. It allows you to search for domains, accounts, resellers,
+packages, and IP addresses from the command line.
+
+Note: This tool requires root access to function properly.
+
+=head1 AUTHOR
+
+Advanced Searcher Development Team
+
+=head1 LICENSE
+
+MIT License
+
+=cut
