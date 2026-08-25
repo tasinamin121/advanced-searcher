@@ -14,6 +14,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Integration with cPanel's native search
 - Multi-language support
 
+## [1.2.4] - 2026-08-25
+
+### Fixed
+- **CRITICAL**: Fixed file copying logic to properly separate local vs GitHub installation paths
+- Ensured GitHub download path uses correct extracted directory structure
+- Fixed logic flow to prevent local file checks from executing during GitHub download
+- Fixed version to 1.2.4
+
+### Installation
+- Local installation now checks for whm/index.cgi and VERSION before attempting copy
+- GitHub download path now correctly uses advanced-searcher-main directory
+- Improved separation between local and remote installation code paths
+- Better error messages with correct path information
+
 ## [1.2.3] - 2026-08-25
 
 ### Fixed

@@ -8,7 +8,7 @@
 
 # Configuration - EDIT THESE BEFORE PUBLISHING
 PLUGIN_NAME="advanced-searcher"
-PLUGIN_VERSION="1.2.3"
+PLUGIN_VERSION="1.2.4"
 REPOSITORY_URL="https://github.com/tasinamin121/advanced-searcher.git"
 DOWNLOAD_URL="https://github.com/tasinamin121/advanced-searcher/archive/refs/heads/main.tar.gz"
 
@@ -209,7 +209,7 @@ copy_files() {
     info "Script directory: ${SCRIPT_DIR}"
     info "Checking if running from source directory or need to download..."
     
-    # Check if we're running from the source directory
+    # Check if we're running from the source directory (local installation)
     if [[ -f "${SCRIPT_DIR}/whm/index.cgi" ]] && [[ -f "${SCRIPT_DIR}/VERSION" ]]; then
         info "Running from source directory, copying local files..."
         
@@ -245,7 +245,7 @@ copy_files() {
             mkdir -p "${PLUGIN_DIR}/lib"
             cp -r "${SCRIPT_DIR}/lib/"* "${PLUGIN_DIR}/lib/"
         else
-            error "lib not found in ${SCRIPT_DIR}/"
+            error "lib not found in ${SCRIPT_DIR}"
             return 1
         fi
         
@@ -304,11 +304,14 @@ copy_files() {
         info "Extracted directory: ${EXTRACTED_DIR}"
         info "Listing extracted directory contents:"
         ls -la "$EXTRACTED_DIR"
+        
+        # The actual files are in the extracted directory (e.g., advanced-searcher-main)
+        # Use that as the source directory
+        local SOURCE_DIR="$EXTRACTED_DIR"
+        
+        info "Source directory: ${SOURCE_DIR}"
         info "Full directory tree of extracted directory:"
         find "$EXTRACTED_DIR" -type f | head -50
-        
-        # Use the extracted directory as source
-        local SOURCE_DIR="$EXTRACTED_DIR"
         
         # Copy files from extracted directory
         if [[ -f "${SOURCE_DIR}/whm/index.cgi" ]]; then
@@ -316,8 +319,8 @@ copy_files() {
             cp "${SOURCE_DIR}/whm/index.cgi" "${PLUGIN_DIR}/"
         else
             error "whm/index.cgi not found in ${SOURCE_DIR}/whm/"
-            info "Available directories in ${SOURCE_DIR}:"
-            ls -la "$EXTRACTED_DIR"
+            info "Searching for index.cgi in ${SOURCE_DIR}:"
+            find "$SOURCE_DIR" -name "index.cgi"
             rm -rf "$TEMP_DIR"
             return 1
         fi

@@ -21,7 +21,7 @@ use AdvancedSearcher::CpanelAPI;
 
 # Configuration
 my $PLUGIN_NAME = "advanced-searcher";
-my $PLUGIN_VERSION = "1.2.3";
+my $PLUGIN_VERSION = "1.2.4";
 my $CONFIG_DIR = "/etc/$PLUGIN_NAME";
 my $LOG_DIR = "/var/log/$PLUGIN_NAME";
 
