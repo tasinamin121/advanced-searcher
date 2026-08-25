@@ -6,7 +6,8 @@ use warnings;
 # Conditionally load cPanel modules
 my $cpanel_available = 0;
 eval {
-    use lib '/usr/local/cpanel';
+    require lib;
+    lib->import('/usr/local/cpanel');
     require Cpanel::Config::LoadConfig;
     require Cpanel::PwCache;
     $cpanel_available = 1;
@@ -366,20 +367,30 @@ sub _get_account_details {
     
     my $details = {};
     
+    # Return early if cPanel modules not available
+    return $details unless $self->{cpanel_available};
+    
     eval {
         # Get account user data
-        my $user_data = Cpanel::PwCache::getpwdata($username);
-        
-        if ($user_data) {
-            $details->{home_dir} = $user_data->{dir} || '';
-            # Use the account owner from cpanel config instead of gecos
-            $details->{owner} = $username; # Default to username
+        if ($self->{cpanel_available}) {
+            my $user_data = Cpanel::PwCache::getpwdata($username);
+            
+            if ($user_data) {
+                $details->{home_dir} = $user_data->{dir} || '';
+                # Use the account owner from cpanel config instead of gecos
+                $details->{owner} = $username; # Default to username
+            }
         }
         
         # Get account configuration
         my $account_file = "/var/cpanel/users/$username";
         if (-e $account_file) {
-            my $account_config = Cpanel::Config::LoadConfig::loadconfig($account_file);
+            my $account_config;
+            if ($self->{cpanel_available}) {
+                $account_config = Cpanel::Config::LoadConfig::loadconfig($account_file);
+            } else {
+                $account_config = $self->_load_config_file($account_file);
+            }
             
             $details->{domain} = $account_config->{DNS} || $account_config->{DOMAIN} || '';
             $details->{package} = $account_config->{PLAN} || '';
@@ -405,11 +416,19 @@ sub _get_account_domains {
     
     my $domains = [];
     
+    # Return early if cPanel modules not available
+    return $domains unless $self->{cpanel_available};
+    
     eval {
         # Get main domain from user file
         my $user_file = "/var/cpanel/users/$username";
         if (-e $user_file) {
-            my $user_config = Cpanel::Config::LoadConfig::loadconfig($user_file);
+            my $user_config;
+            if ($self->{cpanel_available}) {
+                $user_config = Cpanel::Config::LoadConfig::loadconfig($user_file);
+            } else {
+                $user_config = $self->_load_config_file($user_file);
+            }
             my $main_domain = $user_config->{DNS} || $user_config->{DOMAIN} || '';
             
             if ($main_domain) {
@@ -478,10 +497,18 @@ sub _get_reseller_details {
     
     my $details = {};
     
+    # Return early if cPanel modules not available
+    return $details unless $self->{cpanel_available};
+    
     eval {
         my $reseller_file = "/var/cpanel/resellers/$reseller";
         if (-e $reseller_file) {
-            my $reseller_config = Cpanel::Config::LoadConfig::loadconfig($reseller_file);
+            my $reseller_config;
+            if ($self->{cpanel_available}) {
+                $reseller_config = Cpanel::Config::LoadConfig::loadconfig($reseller_file);
+            } else {
+                $reseller_config = $self->_load_config_file($reseller_file);
+            }
             $details->{owner} = $reseller_config->{owner} || 'root';
             $details->{package} = $reseller_config->{package} || '';
         }
@@ -521,6 +548,9 @@ sub _get_all_accounts {
     
     my $accounts = [];
     
+    # Return early if cPanel modules not available
+    return $accounts unless $self->{cpanel_available};
+    
     eval {
         # Read all user files from /var/cpanel/users
         my $users_dir = '/var/cpanel/users';
@@ -532,7 +562,12 @@ sub _get_all_accounts {
                 
                 my $user_file = "$users_dir/$username";
                 if (-f $user_file) {
-                    my $user_config = Cpanel::Config::LoadConfig::loadconfig($user_file);
+                    my $user_config;
+                    if ($self->{cpanel_available}) {
+                        $user_config = Cpanel::Config::LoadConfig::loadconfig($user_file);
+                    } else {
+                        $user_config = $self->_load_config_file($user_file);
+                    }
                     
                     push @$accounts, {
                         user => $username,
@@ -716,6 +751,37 @@ sub _is_reseller {
     }
     
     return 0;
+}
+
+sub _load_config_file {
+    my ($self, $file) = @_;
+    
+    my $config = {};
+    
+    return $config unless -e $file;
+    
+    open my $fh, '<', $file or return $config;
+    while (my $line = <$fh>) {
+        chomp $line;
+        
+        # Skip comments and empty lines
+        next if $line =~ /^\s*#/;
+        next if $line =~ /^\s*$/;
+        
+        # Parse key=value pairs
+        if ($line =~ /^\s*([A-Z_][A-Z0-9_]*)\s*=\s*(.*?)\s*$/) {
+            my $key = $1;
+            my $value = $2;
+            
+            # Remove quotes if present
+            $value =~ s/^["']|["']$//g;
+            
+            $config->{$key} = $value;
+        }
+    }
+    close $fh;
+    
+    return $config;
 }
 
 1;
