@@ -8,7 +8,7 @@
 
 # Configuration - EDIT THESE BEFORE PUBLISHING
 PLUGIN_NAME="advanced-searcher"
-PLUGIN_VERSION="1.2.1"
+PLUGIN_VERSION="1.2.2"
 REPOSITORY_URL="https://github.com/tasinamin121/advanced-searcher.git"
 DOWNLOAD_URL="https://github.com/tasinamin121/advanced-searcher/archive/refs/heads/main.tar.gz"
 
@@ -286,46 +286,65 @@ copy_files() {
         info "Extracting plugin files..."
         tar -xzf "${TEMP_DIR}/plugin.tar.gz" -C "$TEMP_DIR"
         
-        # Find the extracted directory
+        # Find the extracted directory (should be advanced-searcher-main)
         local EXTRACTED_DIR=$(find "$TEMP_DIR" -type d -name "advanced-searcher-*" | head -1)
         
         if [[ -z "$EXTRACTED_DIR" ]]; then
             error "Could not find extracted directory"
+            info "Listing temp directory contents:"
+            ls -la "$TEMP_DIR"
             rm -rf "$TEMP_DIR"
             return 1
         fi
         
         info "Extracted directory: ${EXTRACTED_DIR}"
+        info "Listing extracted directory contents:"
+        ls -la "$EXTRACTED_DIR"
         
-        # Copy files from extracted directory
+        # Check if files are directly in extracted dir or in a subdirectory
         if [[ -f "${EXTRACTED_DIR}/whm/index.cgi" ]]; then
-            cp "${EXTRACTED_DIR}/whm/index.cgi" "${PLUGIN_DIR}/"
+            local SOURCE_DIR="$EXTRACTED_DIR"
+        elif [[ -f "${EXTRACTED_DIR}/*/whm/index.cgi" ]]; then
+            local SOURCE_DIR=$(find "$EXTRACTED_DIR" -type d -name "advanced-searcher-*" | head -1)
         else
-            error "whm/index.cgi not found in extracted files"
+            error "Could not locate whm/index.cgi in extracted files"
+            info "Full directory tree:"
+            find "$TEMP_DIR" -type f -name "*.cgi" | head -20
             rm -rf "$TEMP_DIR"
             return 1
         fi
         
-        if [[ -f "${EXTRACTED_DIR}/whm/api.cgi" ]]; then
-            cp "${EXTRACTED_DIR}/whm/api.cgi" "${PLUGIN_DIR}/"
+        info "Source directory: ${SOURCE_DIR}"
+        
+        # Copy files from extracted directory
+        if [[ -f "${SOURCE_DIR}/whm/index.cgi" ]]; then
+            cp "${SOURCE_DIR}/whm/index.cgi" "${PLUGIN_DIR}/"
+        else
+            error "whm/index.cgi not found in ${SOURCE_DIR}/whm/"
+            rm -rf "$TEMP_DIR"
+            return 1
         fi
         
-        if [[ -d "${EXTRACTED_DIR}/whm/assets" ]]; then
-            cp -r "${EXTRACTED_DIR}/whm/assets" "${PLUGIN_DIR}/"
+        if [[ -f "${SOURCE_DIR}/whm/api.cgi" ]]; then
+            cp "${SOURCE_DIR}/whm/api.cgi" "${PLUGIN_DIR}/"
         fi
         
-        if [[ -d "${EXTRACTED_DIR}/lib" ]]; then
+        if [[ -d "${SOURCE_DIR}/whm/assets" ]]; then
+            cp -r "${SOURCE_DIR}/whm/assets" "${PLUGIN_DIR}/"
+        fi
+        
+        if [[ -d "${SOURCE_DIR}/lib" ]]; then
             mkdir -p "${PLUGIN_DIR}/lib"
-            cp -r "${EXTRACTED_DIR}/lib/"* "${PLUGIN_DIR}/lib/"
+            cp -r "${SOURCE_DIR}/lib/"* "${PLUGIN_DIR}/lib/"
         fi
         
-        if [[ -f "${EXTRACTED_DIR}/bin/advanced-searcher" ]]; then
+        if [[ -f "${SOURCE_DIR}/bin/advanced-searcher" ]]; then
             mkdir -p "${PLUGIN_DIR}/bin"
-            cp "${EXTRACTED_DIR}/bin/advanced-searcher" "${PLUGIN_DIR}/bin/"
+            cp "${SOURCE_DIR}/bin/advanced-searcher" "${PLUGIN_DIR}/bin/"
         fi
         
-        if [[ -f "${EXTRACTED_DIR}/VERSION" ]]; then
-            cp "${EXTRACTED_DIR}/VERSION" "${PLUGIN_DIR}/"
+        if [[ -f "${SOURCE_DIR}/VERSION" ]]; then
+            cp "${SOURCE_DIR}/VERSION" "${PLUGIN_DIR}/"
         fi
         
         # Cleanup

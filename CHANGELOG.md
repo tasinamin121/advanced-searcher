@@ -14,6 +14,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Integration with cPanel's native search
 - Multi-language support
 
+## [1.2.2] - 2026-08-25
+
+### Fixed
+- **CRITICAL**: Fixed tarball extraction to correctly locate files
+- Added directory tree listing for debugging extraction issues
+- Added better source directory detection logic
+- Added detailed logging of extracted directory contents
+- Fixed version to 1.2.2
+
+### Installation
+- Now correctly finds and copies files from GitHub tarball
+- Shows detailed extraction debugging information
+- Better error messages when file structure is unexpected
+
 ## [1.2.1] - 2026-08-25
 
 ### Fixed
