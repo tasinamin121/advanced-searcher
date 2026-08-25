@@ -14,6 +14,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Integration with cPanel's native search
 - Multi-language support
 
+## [1.2.3] - 2026-08-25
+
+### Fixed
+- **CRITICAL**: Added comprehensive extraction debugging to diagnose tarball structure
+- Added listing of temp directory contents after extraction
+- Added full directory tree listing of extracted directory
+- Added file search for .cgi files if standard structure not found
+- Fixed version to 1.2.3
+
+### Installation
+- Shows detailed extraction debugging information
+- Lists all files in extracted directory before copying
+- Better error messages when file structure is unexpected
+- Uses maxdepth 1 to find extracted directory to avoid recursion issues
+
 ## [1.2.2] - 2026-08-25
 
 ### Fixed

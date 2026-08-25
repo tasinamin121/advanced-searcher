@@ -8,7 +8,7 @@
 
 # Configuration - EDIT THESE BEFORE PUBLISHING
 PLUGIN_NAME="advanced-searcher"
-PLUGIN_VERSION="1.2.2"
+PLUGIN_VERSION="1.2.3"
 REPOSITORY_URL="https://github.com/tasinamin121/advanced-searcher.git"
 DOWNLOAD_URL="https://github.com/tasinamin121/advanced-searcher/archive/refs/heads/main.tar.gz"
 
@@ -286,13 +286,17 @@ copy_files() {
         info "Extracting plugin files..."
         tar -xzf "${TEMP_DIR}/plugin.tar.gz" -C "$TEMP_DIR"
         
-        # Find the extracted directory (should be advanced-searcher-main)
-        local EXTRACTED_DIR=$(find "$TEMP_DIR" -type d -name "advanced-searcher-*" | head -1)
+        # List what was extracted
+        info "Contents of temp directory after extraction:"
+        ls -la "$TEMP_DIR"
+        
+        # Find the extracted directory (GitHub creates advanced-searcher-main or similar)
+        local EXTRACTED_DIR=$(find "$TEMP_DIR" -maxdepth 1 -type d -name "advanced-searcher-*" | head -1)
         
         if [[ -z "$EXTRACTED_DIR" ]]; then
             error "Could not find extracted directory"
-            info "Listing temp directory contents:"
-            ls -la "$TEMP_DIR"
+            info "Full directory tree of temp directory:"
+            find "$TEMP_DIR" -type d
             rm -rf "$TEMP_DIR"
             return 1
         fi
@@ -300,27 +304,20 @@ copy_files() {
         info "Extracted directory: ${EXTRACTED_DIR}"
         info "Listing extracted directory contents:"
         ls -la "$EXTRACTED_DIR"
+        info "Full directory tree of extracted directory:"
+        find "$EXTRACTED_DIR" -type f | head -50
         
-        # Check if files are directly in extracted dir or in a subdirectory
-        if [[ -f "${EXTRACTED_DIR}/whm/index.cgi" ]]; then
-            local SOURCE_DIR="$EXTRACTED_DIR"
-        elif [[ -f "${EXTRACTED_DIR}/*/whm/index.cgi" ]]; then
-            local SOURCE_DIR=$(find "$EXTRACTED_DIR" -type d -name "advanced-searcher-*" | head -1)
-        else
-            error "Could not locate whm/index.cgi in extracted files"
-            info "Full directory tree:"
-            find "$TEMP_DIR" -type f -name "*.cgi" | head -20
-            rm -rf "$TEMP_DIR"
-            return 1
-        fi
-        
-        info "Source directory: ${SOURCE_DIR}"
+        # Use the extracted directory as source
+        local SOURCE_DIR="$EXTRACTED_DIR"
         
         # Copy files from extracted directory
         if [[ -f "${SOURCE_DIR}/whm/index.cgi" ]]; then
+            info "Found whm/index.cgi in ${SOURCE_DIR}/whm/"
             cp "${SOURCE_DIR}/whm/index.cgi" "${PLUGIN_DIR}/"
         else
             error "whm/index.cgi not found in ${SOURCE_DIR}/whm/"
+            info "Available directories in ${SOURCE_DIR}:"
+            ls -la "$EXTRACTED_DIR"
             rm -rf "$TEMP_DIR"
             return 1
         fi
